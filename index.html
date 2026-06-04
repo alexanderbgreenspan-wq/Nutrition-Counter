@@ -172,17 +172,12 @@
   <!-- Morning weigh-in card -->
   <div class="card" id="weigh-in-card">
     <div class="card-title">Morning weigh-in</div>
-    <div class="row">
-      <div>
-        <label>Weight (kg)</label>
-        <input type="number" id="weight-input" step="0.1" placeholder="e.g. 91.2">
-      </div>
-      <div>
-        <label>Day number</label>
-        <input type="number" id="day-number-input" placeholder="e.g. 36">
-      </div>
+    <div class="mb">
+      <label>Weight (kg)</label>
+      <input type="number" id="weight-input" step="0.1" placeholder="e.g. 91.2">
     </div>
-    <button class="btn btn-primary mt" onclick="submitWeighIn()">Lock in & start today</button>
+    <div class="text-muted mb" style="font-size:13px" id="next-day-label"></div>
+    <button class="btn btn-primary" onclick="submitWeighIn()">Lock in & start today</button>
   </div>
 
   <!-- Today summary -->
@@ -509,9 +504,12 @@ async function detectOpenDay() {
 // ─── WEIGH-IN / DAY LOCK ─────────────────────────────────────────
 async function submitWeighIn() {
   const w = parseFloat(document.getElementById('weight-input').value);
-  const dayNum = parseInt(document.getElementById('day-number-input').value);
-  if (!w || !dayNum) { alert('Please enter weight and day number.'); return; }
+  if (!w) { alert('Please enter your weight.'); return; }
   if (!sb) { alert('Supabase not configured.'); return; }
+  // Auto-calculate next day number
+  const maxDay = historyDays.length > 0 ? Math.max(...historyDays.map(d => d.id)) : 0;
+  const openDay = todayDay; // already open day if any
+  const dayNum = openDay !== null ? openDay : maxDay + 1;
 
   // Lock yesterday if open
   if (todayDay !== null && todayDay !== dayNum) {
@@ -552,7 +550,12 @@ function renderToday() {
   const noDay = todayDay === null;
   document.getElementById('weigh-in-card').classList.toggle('hidden', !noDay);
   document.getElementById('today-summary').classList.toggle('hidden', noDay);
-  if (noDay) return;
+  if (noDay) {
+    const maxDay = historyDays.length > 0 ? Math.max(...historyDays.map(d => d.id)) : 0;
+    const lbl = document.getElementById('next-day-label');
+    if (lbl) lbl.textContent = 'This will be logged as Day ' + (maxDay + 1);
+    return;
+  }
 
   const totCal = +todayMeals.reduce((s, m) => s + m.calories, 0).toFixed(1);
   const totPro = +todayMeals.reduce((s, m) => s + m.protein, 0).toFixed(1);
