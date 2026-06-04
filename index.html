@@ -208,9 +208,9 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Today's Max</div>
+      <div class="card-title">Morning budget</div>
       <div style="font-size:22px;font-weight:700" id="budget-display">—</div>
-      <div class="text-muted mt" style="font-size:12px">Needed to bring 14-day average to 2,400</div>
+      <div class="text-muted mt" style="font-size:12px">kcal to eat today to land 14-day average exactly at 2,400</div>
     </div>
 
     <div class="card">
@@ -300,6 +300,7 @@
   <div id="log-library" class="hidden">
     <div class="card">
       <div class="card-title">Saved meals</div>
+      <input type="text" id="library-search" placeholder="Search saved meals..." oninput="renderLibrary()" style="margin-bottom:12px">
       <div id="library-list"><div class="text-muted">No saved meals yet.</div></div>
     </div>
   </div>
@@ -673,11 +674,13 @@ function logUSDA() {
 // ─── LIBRARY ─────────────────────────────────────────────────────
 function renderLibrary() {
   const el = document.getElementById('library-list');
-  if (libMeals.length === 0) {
-    el.innerHTML = '<div class="text-muted">No saved meals yet.</div>';
+  const q = (document.getElementById('library-search')?.value || '').toLowerCase();
+  const filtered = libMeals.filter(m => m.name.toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="text-muted">' + (libMeals.length === 0 ? 'No saved meals yet.' : 'No matches.') + '</div>';
     return;
   }
-  el.innerHTML = libMeals.map(m => `
+  el.innerHTML = filtered.map(m => `
     <div class="meal-item">
       <div>
         <div class="meal-name">${m.name}</div>
