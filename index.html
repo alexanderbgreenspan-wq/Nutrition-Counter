@@ -438,7 +438,7 @@ async function searchUSDA() {
   document.getElementById('usda-results').innerHTML = '<div class="spinner">Searching…</div>';
   document.getElementById('usda-confirm-card').classList.add('hidden');
   try {
-    const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&pageSize=8&dataType=SR%20Legacy,Survey%20(FNDDS),Foundation`);
+    const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&pageSize=8&dataType=SR%20Legacy,Survey%20(FNDDS),Foundation&api_key=QchLTxDO9gwEsAbIEjwaXhrdqS22of1bFgrlMXoD`);
     const data = await res.json();
     const foods = data.foods || [];
     if (foods.length === 0) { document.getElementById('usda-results').innerHTML = '<div class="text-muted">No results found.</div>'; return; }
