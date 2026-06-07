@@ -205,6 +205,18 @@
   </div>
 </div>
 
+<!-- LIBRARY MANAGE MODAL -->
+<div class="modal-overlay hidden" id="manage-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeManageModal()">×</button>
+    <div class="modal-title" id="manage-modal-title"></div>
+    <div id="manage-modal-macros" class="text-muted mb" style="font-size:14px"></div>
+    <button class="btn btn-secondary mt" onclick="startEditLibItem()">Edit</button>
+    <button class="btn btn-danger mt" onclick="confirmDeleteLibItem()">Delete</button>
+    <button class="btn btn-secondary mt" onclick="closeManageModal()">Cancel</button>
+  </div>
+</div>
+
 <!-- LIBRARY MODAL -->
 <div class="modal-overlay hidden" id="lib-modal">
   <div class="modal">
@@ -564,21 +576,33 @@ function renderLibrary() {
     </div>`).join('');
 }
 
+let managePending = null;
+
 function manageLibItem(id) {
-  const m = libMeals.find(m => m.id === id);
-  if (!m) return;
-  const choice = confirm('Tap OK to edit, Cancel to delete.');
-  if (choice) {
-    editLibItem(id);
-  } else {
-    deleteLibItem(id);
-  }
+  managePending = libMeals.find(m => m.id === id);
+  if (!managePending) return;
+  document.getElementById('manage-modal-title').textContent = managePending.name;
+  document.getElementById('manage-modal-macros').textContent = managePending.calories + ' kcal · ' + managePending.protein + 'g protein';
+  document.getElementById('manage-modal').classList.remove('hidden');
 }
 
-async function deleteLibItem(id) {
-  await sb.from('library').delete().eq('id', id).eq('user_id', currentUser.id);
-  libMeals = libMeals.filter(m => m.id !== id);
+function closeManageModal() {
+  document.getElementById('manage-modal').classList.add('hidden');
+  managePending = null;
+}
+
+async function confirmDeleteLibItem() {
+  if (!managePending) return;
+  await sb.from('library').delete().eq('id', managePending.id).eq('user_id', currentUser.id);
+  libMeals = libMeals.filter(m => m.id !== managePending.id);
+  closeManageModal();
   renderLibrary();
+}
+
+function startEditLibItem() {
+  if (!managePending) return;
+  closeManageModal();
+  editLibItem(managePending.id);
 }
 
 function editLibItem(id) {
