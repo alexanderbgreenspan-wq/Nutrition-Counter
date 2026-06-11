@@ -27,6 +27,7 @@
   .btn:active { opacity: .7; }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--red); color: #fff; }
   .btn-sm { font-size: 13px; padding: 7px 12px; width: auto; display: inline-block; }
   .alert { border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 14px; font-weight: 500; }
   .alert-green { background: #1b3d1e; border: 1px solid var(--green); color: var(--green); }
@@ -205,19 +206,33 @@
   </div>
 </div>
 
-<!-- LIBRARY MANAGE MODAL -->
+<!-- MANAGE MODAL -->
 <div class="modal-overlay hidden" id="manage-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeManageModal()">×</button>
     <div class="modal-title" id="manage-modal-title"></div>
     <div id="manage-modal-macros" class="text-muted mb" style="font-size:14px"></div>
-    <button class="btn btn-secondary mt" onclick="startEditLibItem()">Edit</button>
+    <button class="btn btn-secondary mt" onclick="openEditModal()">Edit</button>
     <button class="btn btn-danger mt" onclick="confirmDeleteLibItem()">Delete</button>
     <button class="btn btn-secondary mt" onclick="closeManageModal()">Cancel</button>
   </div>
 </div>
 
-<!-- LIBRARY MODAL -->
+<!-- EDIT MODAL -->
+<div class="modal-overlay hidden" id="edit-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditModal()">×</button>
+    <div class="modal-title">Edit meal</div>
+    <div class="mb"><label>Meal name</label><input type="text" id="edit-name"></div>
+    <div class="row mb">
+      <div><label>Calories</label><input type="number" id="edit-cal" step="0.1"></div>
+      <div><label>Protein (g)</label><input type="number" id="edit-pro" step="0.1"></div>
+    </div>
+    <button class="btn btn-primary mt" onclick="saveEditLibItem()">Save</button>
+  </div>
+</div>
+
+<!-- LIBRARY LOG MODAL -->
 <div class="modal-overlay hidden" id="lib-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeLibModal()">×</button>
@@ -225,7 +240,7 @@
     <div id="lib-modal-macros" class="text-muted mb" style="font-size:14px"></div>
     <label>Portion %</label>
     <input type="number" id="pct-input" min="1" max="200" value="100" oninput="updatePctDisplay()" style="margin:10px 0">
-    <hr class="divider">
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
     <div id="lib-modal-adjusted" style="font-size:15px;font-weight:600;margin-bottom:16px"></div>
     <button class="btn btn-primary" onclick="confirmLibLog()">Add to today</button>
   </div>
@@ -240,6 +255,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let cfg = { calCeil: 2400, proFloor: 88, proCeil: 168, fatRatio: 1.0 };
 let todayDay = null, todayMeals = [], historyDays = [], libMeals = [];
+let libPending = null, managePending = null, usdaPending = null, currentUser = null;
 let todayWeight = null;
 let authMode = 'login';
 
@@ -292,7 +308,7 @@ function loginSuccess(user) {
 
 function logout() {
   localStorage.removeItem('nt_user');
-  currentUser = null; todayDay = null; todayMeals = []; historyDays = []; libMeals = [];
+  currentUser = null; todayDay = null; todayMeals = []; historyDays = []; libMeals = []; todayWeight = null;
   document.getElementById('app').classList.add('hidden');
   document.getElementById('auth-screen').classList.remove('hidden');
   document.getElementById('auth-username').value = '';
@@ -415,10 +431,12 @@ function renderToday() {
   const totPro = +todayMeals.reduce((s, m) => s + m.protein, 0).toFixed(1);
   const past13 = historyDays.slice(-13).reduce((s, d) => s + (d.calories || 0), 0);
   const budget = 33600 - past13;
+  const remaining = +(cfg.calCeil - totCal).toFixed(1);
   const calPct = Math.min((totCal / cfg.calCeil) * 100, 100);
   const proPct = Math.min((totPro / cfg.proCeil) * 100, 100);
   const calColor = totCal >= cfg.calCeil ? 'var(--red)' : 'var(--accent)';
   const proColor = totPro >= cfg.proCeil ? 'var(--red)' : totPro >= cfg.proFloor ? 'var(--green)' : 'var(--yellow)';
+  const remainingColor = remaining < 0 ? 'var(--red)' : remaining < 200 ? 'var(--yellow)' : 'var(--muted)';
   const mealsHTML = todayMeals.length === 0
     ? '<div class="text-muted">No meals logged yet.</div>'
     : todayMeals.map(m => `
@@ -434,8 +452,16 @@ function renderToday() {
       </div>`).join('');
   container.innerHTML = `
     <div class="stats-row">
-      <div class="stat-box"><div class="stat-val">${totCal}</div><div class="stat-label">kcal today</div><div class="stat-sub">budget: ${budget}</div></div>
-      <div class="stat-box"><div class="stat-val">${totPro}g</div><div class="stat-label">protein today</div><div class="stat-sub">floor: ${cfg.proFloor}g</div></div>
+      <div class="stat-box">
+        <div class="stat-val">${totCal}</div>
+        <div class="stat-label">kcal today</div>
+        <div class="stat-sub" style="color:${remainingColor}">${remaining >= 0 ? remaining + ' remaining' : Math.abs(remaining) + ' over'}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val">${totPro}g</div>
+        <div class="stat-label">protein today</div>
+        <div class="stat-sub">floor: ${cfg.proFloor}g</div>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">Progress</div>
@@ -576,8 +602,6 @@ function renderLibrary() {
     </div>`).join('');
 }
 
-let managePending = null;
-
 function manageLibItem(id) {
   managePending = libMeals.find(m => m.id === id);
   if (!managePending) return;
@@ -599,25 +623,30 @@ async function confirmDeleteLibItem() {
   renderLibrary();
 }
 
-function startEditLibItem() {
+function openEditModal() {
   if (!managePending) return;
-  closeManageModal();
-  editLibItem(managePending.id);
+  document.getElementById('edit-name').value = managePending.name;
+  document.getElementById('edit-cal').value = managePending.calories;
+  document.getElementById('edit-pro').value = managePending.protein;
+  document.getElementById('manage-modal').classList.add('hidden');
+  document.getElementById('edit-modal').classList.remove('hidden');
 }
 
-function editLibItem(id) {
-  const m = libMeals.find(m => m.id === id);
-  if (!m) return;
-  const name = prompt('Meal name:', m.name);
-  if (name === null) return;
-  const cal = prompt('Calories:', m.calories);
-  if (cal === null) return;
-  const pro = prompt('Protein (g):', m.protein);
-  if (pro === null) return;
-  sb.from('library').update({ name: name.trim(), calories: +cal, protein: +pro }).eq('id', id).eq('user_id', currentUser.id).then(async () => {
-    await loadLibrary();
-    renderLibrary();
-  });
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.add('hidden');
+  managePending = null;
+}
+
+async function saveEditLibItem() {
+  if (!managePending) return;
+  const name = document.getElementById('edit-name').value.trim();
+  const cal = +document.getElementById('edit-cal').value;
+  const pro = +document.getElementById('edit-pro').value;
+  if (!name) { alert('Please enter a meal name.'); return; }
+  await sb.from('library').update({ name, calories: cal, protein: pro }).eq('id', managePending.id).eq('user_id', currentUser.id);
+  await loadLibrary();
+  closeEditModal();
+  renderLibrary();
 }
 
 function openLibModal(id) {
@@ -658,10 +687,7 @@ function renderHistory() {
   const kgLost = Math.max(0, w0 - wN);
   const totalCal = rows.reduce((s, d) => s + (d.calories || 0), 0);
   const tdee = rows.length > 0 ? Math.round((totalCal + kgLost * cfg.fatRatio * 7700) / rows.length) : 0;
-  const summaryRow = `
-    <tr class="summary-row">
-      <td>TDEE: ${tdee} kcal</td><td>—</td><td>${Math.round(avgCal)}</td><td>${Math.round(avgPro)}g</td>
-    </tr>`;
+  const summaryRow = `<tr class="summary-row"><td>TDEE: ${tdee} kcal</td><td>—</td><td>${Math.round(avgCal)}</td><td>${Math.round(avgPro)}g</td></tr>`;
   const dataRows = [...rows].reverse().map(d => {
     const p = last14ids.has(d.id) ? 'color:#8126ff' : '';
     return `<tr>
